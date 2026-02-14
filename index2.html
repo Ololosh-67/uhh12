@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hollow Knight: настройка спрайтов</title>
+    <style>
+        /* Стили без изменений (можно оставить как есть) */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: #0b0c0e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+        }
+        .game-wrapper {
+            background: #1a1e24;
+            border-radius: 2rem;
+            padding: 1.5rem 2rem 1.8rem;
+            box-shadow: 0 20px 30px rgba(0,0,0,0.8), inset 0 0 0 1px #4a3f33;
+            border-bottom: 4px solid #6b4f3c;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2rem;
+            letter-spacing: 4px;
+            font-weight: 400;
+            text-transform: uppercase;
+            color: #dcd5be;
+            text-shadow: 0 0 6px #6f9355, 0 2px 0 #2c3a1f;
+            margin-bottom: 0.5rem;
+        }
+        h1 span {
+            display: inline-block;
+            transform: scale(-1, 1);
+            font-size: 2.2rem;
+            color: #b1e079;
+            margin: 0 5px;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            width: 900px;
+            height: 500px;
+            border-radius: 30px;
+            box-shadow: 0 0 0 3px #5e4b33, 0 20px 30px #00000080, inset 0 0 30px #000000;
+            background: #191919;
+            cursor: none;
+        }
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding: 0.6rem 1.5rem;
+            background: #252a30;
+            border-radius: 60px;
+            border-bottom: 3px solid #3f3a2e;
+            color: #e3d9c2;
+            font-size: 1.1rem;
+            font-weight: 500;
+            text-shadow: 0 2px 2px black;
+        }
+        .controls {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .key {
+            background: #312e26;
+            padding: 0.2rem 1rem;
+            border-radius: 30px;
+            border-bottom: 3px solid #6d5c45;
+            font-family: monospace;
+            font-size: 1.1rem;
+            color: #e9e1cf;
+        }
+        .reset-btn {
+            background: #3b3f3c;
+            border: none;
+            padding: 0.3rem 1.8rem;
+            border-radius: 40px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #e1ddcf;
+            border-bottom: 4px solid #656b5e;
+            cursor: pointer;
+            transition: 0.08s linear;
+            box-shadow: 0 5px 0 #262b24;
+        }
+        .reset-btn:active {
+            transform: translateY(4px);
+            border-bottom-width: 2px;
+            box-shadow: 0 1px 0 #262b24;
+        }
+        .grub-counter {
+            background: #2c312b;
+            padding: 0.2rem 1.2rem;
+            border-radius: 30px;
+            border-left: 4px solid #ebc46c;
+            font-size: 1.3rem;
+        }
+        footer {
+            text-align: center;
+            margin-top: 0.7rem;
+            color: #5a6253;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <h1><span>⋟</span> НАСТРАИВАЕМЫЙ СПРАЙТ <span>⋞</span></h1>
+    <canvas id="gameCanvas" width="900" height="500"></canvas>
+    <div class="info-panel">
+        <div class="controls">
+            <span class="key">A / D</span>
+            <span class="key">␣ прыжок</span>
+            <span class="key">C рывок</span>
+            <span class="key">ЛКМ атака</span>
+            <span class="key">Ctrl заклинание</span>
+        </div>
+        <div class="grub-counter" id="grubDisplay">🪱 0 / 13</div>
+        <button class="reset-btn" id="resetButton">⟲ возродиться</button>
+    </div>
+    <footer>• подберите параметры спрайта в коде •</footer>
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const grubDisplay = document.getElementById('grubDisplay');
+
+    // ==================== НАСТРОЙКИ СПРАЙТА РЫЦАРЯ ====================
+    // ⭐⭐⭐ УКАЖИТЕ РАЗМЕР ОДНОГО КАДРА В ПИКСЕЛЯХ ⭐⭐⭐
+    const FRAME_WIDTH = 32;   // ширина одного кадра (например, 32)
+    const FRAME_HEIGHT = 32;  // высота одного кадра (скорее всего, равна ширине)
+    const FRAMES_PER_ROW = 5; // сколько кадров в одном ряду (если ширина листа 160, то 160/FRAME_WIDTH)
+
+    // ⭐⭐⭐ УКАЖИТЕ, ГДЕ НАХОДЯТСЯ НУЖНЫЕ КАДРЫ (ряд и индекс в ряду, начиная с 0) ⭐⭐⭐
+    // Пример: если первый кадр (покой) находится в 1-м ряду (индекс 0) и это 1-й кадр (индекс 0)
+    const framePositions = {
+        idle:   { row: 0, col: 0 },   // покой
+        run1:   { row: 0, col: 1 },   // бег кадр 1
+        run2:   { row: 0, col: 2 },   // бег кадр 2
+        jump:   { row: 0, col: 3 },   // прыжок вверх
+        fall:   { row: 0, col: 4 },   // падение
+        dash:   { row: 1, col: 0 },   // рывок (если во втором ряду)
+        attack1: { row: 1, col: 1 },  // атака кадр 1
+        attack2: { row: 1, col: 2 },  // атака кадр 2
+        climb:  { row: 1, col: 3 }    // лазанье
+    };
+
+    // Если не знаете точные координаты, начните с этих значений и меняйте, пока не увидите правильные кадры.
+    // Проверяйте особенно dash — он должен быть виден при рывке.
+
+    // ==================== ЗАГРУЗКА ЛОКАЛЬНЫХ СПРАЙТОВ ====================
+    const knightSprite = new Image();
+    knightSprite.src = "hollowknightsprite.png"; // файл в той же папке
+    let knightSpriteLoaded = false;
+    knightSprite.onload = () => { 
+        knightSpriteLoaded = true; 
+        console.log("Спрайт рыцаря загружен");
+    };
+    knightSprite.onerror = () => { 
+        console.warn("Не удалось загрузить спрайт рыцаря, используется векторная заглушка"); 
+    };
+
+    const hornetSprite = new Image();
+    hornetSprite.src = "hornetspite3.png"; // файл в той же папке
+    let hornetLoaded = false;
+    hornetSprite.onload = () => { 
+        hornetLoaded = true; 
+        console.log("Спрайт Хорнет загружен");
+    };
+    hornetSprite.onerror = () => { 
+        console.warn("Не удалось загрузить спрайт Хорнет, используется заглушка"); 
+    };
+
+    // ==================== НАСТРОЙКИ МИРА ====================
+    const W = 900, H = 500;
+    const GRAVITY = 0.45;
+    const MOVE_SPEED = 3.8;
+    const JUMP_FORCE = -8.2;
+    const DASH_SPEED = 9.5;
+    const DASH_DURATION = 12;
+    const DASH_COOLDOWN = 25;
+    const ATTACK_DURATION = 8;
+    const ATTACK_COOLDOWN = 20;
+    const WALL_SLIDE_SPEED = 1.2;
+    const KNIGHT_SIZE = 22;          // размер отрисовки на экране
+    const PROJECTILE_SPEED = 7;
+    const PROJECTILE_COOLDOWN = 12;
+
+    // ==================== КОМНАТЫ (без изменений) ====================
+    const rooms = [
+        { // Комната 0 (начальная)
+            platforms: [
+                { x: 0, y: 460, w: 900, h: 40 },
+                { x: 150, y: 380, w: 80, h: 20 },
+                { x: 300, y: 320, w: 60, h: 20 },
+                { x: 100, y: 250, w: 150, h: 20 },
+                { x: 400, y: 200, w: 100, h: 20 },
+                { x: 550, y: 280, w: 90, h: 20 },
+                { x: 700, y: 350, w: 120, h: 20 },
+                { x: 30, y: 200, w: 20, h: 250 },
+                { x: 800, y: 150, w: 20, h: 300 },
+                { x: 500, y: 50, w: 20, h: 140 },
+                { x: 200, y: 80, w: 100, h: 18 },
+                { x: 600, y: 90, w: 90, h: 18 },
+                { x: 750, y: 430, w: 60, h: 18 },
+                { x: 30, y: 430, w: 70, h: 18 },
+            ],
+            enemies: [
+                { x: 350, y: 380, w: 20, h: 20, vx: 0.8, vy: 0, patrolLeft: 300, patrolRight: 430, alive: true },
+                { x: 620, y: 260, w: 20, h: 20, vx: 0.6, vy: 0, patrolLeft: 560, patrolRight: 720, alive: true },
+                { x: 180, y: 60, w: 20, h: 20, vx: 0.9, vy: 0, patrolLeft: 130, patrolRight: 270, alive: true },
+                { x: 750, y: 410, w: 20, h: 20, vx: 1.2, vy: 0, patrolLeft: 700, patrolRight: 820, alive: true },
+            ],
+            grubs: [
+                { x: 200, y: 360, collected: false },
+                { x: 330, y: 300, collected: false },
+                { x: 130, y: 230, collected: false },
+                { x: 440, y: 180, collected: false },
+                { x: 590, y: 260, collected: false },
+                { x: 750, y: 330, collected: false },
+                { x: 50, y: 410, collected: false },
+                { x: 820, y: 130, collected: false },
+            ]
+        },
+        { // Комната 1 (вторая)
+            platforms: [
+                { x: 0, y: 460, w: 900, h: 40 },
+                { x: 100, y: 380, w: 200, h: 20 },
+                { x: 450, y: 320, w: 150, h: 20 },
+                { x: 250, y: 240, w: 100, h: 20 },
+                { x: 600, y: 180, w: 120, h: 20 },
+                { x: 750, y: 280, w: 80, h: 20 },
+                { x: 50, y: 150, w: 20, h: 300 },
+                { x: 820, y: 100, w: 20, h: 350 },
+                { x: 300, y: 70, w: 200, h: 18 },
+                { x: 500, y: 400, w: 150, h: 18 },
+            ],
+            enemies: [
+                { x: 150, y: 360, w: 20, h: 20, vx: 1.0, vy: 0, patrolLeft: 100, patrolRight: 280, alive: true },
+                { x: 500, y: 300, w: 20, h: 20, vx: 0.7, vy: 0, patrolLeft: 450, patrolRight: 580, alive: true },
+                { x: 700, y: 150, w: 20, h: 20, vx: 1.3, vy: 0, patrolLeft: 650, patrolRight: 800, alive: true },
+            ],
+            grubs: [
+                { x: 150, y: 340, collected: false },
+                { x: 500, y: 280, collected: false },
+                { x: 720, y: 130, collected: false },
+                { x: 350, y: 400, collected: false },
+                { x: 800, y: 380, collected: false },
+            ]
+        },
+        { // Комната 2 (босс Хорнет)
+            platforms: [
+                { x: 0, y: 460, w: 900, h: 40 },
+                { x: 200, y: 380, w: 150, h: 20 },
+                { x: 500, y: 300, w: 150, h: 20 },
+                { x: 300, y: 200, w: 100, h: 20 },
+                { x: 600, y: 150, w: 100, h: 20 },
+                { x: 100, y: 100, w: 80, h: 20 },
+                { x: 750, y: 250, w: 80, h: 20 },
+            ],
+            enemies: [],
+            grubs: [
+                { x: 400, y: 420, collected: false },
+            ],
+            boss: {
+                x: 400, y: 300,
+                width: 40, height: 40,
+                health: 5,
+                maxHealth: 5,
+                active: true,
+                invincible: 0,
+                attackCooldown: 0,
+                phase: 0
+            }
+        }
+    ];
+
+    let currentRoom = 0;
+    let platforms = rooms[currentRoom].platforms;
+    let enemies = rooms[currentRoom].enemies.map(e => ({ ...e, alive: true }));
+    let grubs = rooms[currentRoom].grubs.map(g => ({ ...g }));
+    let boss = rooms[currentRoom].boss ? { ...rooms[currentRoom].boss } : null;
+
+    let totalGrubsCollected = 0;
+    const totalGrubCount = rooms.reduce((acc, room) => acc + room.grubs.length, 0);
+
+    // ==================== ИГРОК ====================
+    let knight = {
+        x: 80, y: 400,
+        vx: 0, vy: 0,
+        width: KNIGHT_SIZE, height: KNIGHT_SIZE,
+        grounded: false,
+        wallSliding: false,
+        wallDir: 0,
+        doubleJumpUsed: false,
+        canDash: true,
+        isDashing: false,
+        dashTimer: 0,
+        dashCooldownTimer: 0,
+        attackTimer: 0,
+        attackCooldown: 0,
+        facing: 1,
+        invincible: 0,
+        health: 1,
+        spellCooldown: 0,
+        spellUpCooldown: 0,
+        animFrame: 0,
+        animTimer: 0
+    };
+
+    // ==================== СНАРЯДЫ ====================
+    let projectiles = [];
+
+    // ==================== УПРАВЛЕНИЕ ====================
+    const keys = {
+        left: false, right: false, jump: false, dash: false, attack: false, spell: false, spellUp: false
+    };
+    let jumpKeyWasPressed = false;
+
+    // ==================== ОБРАБОТЧИКИ КЛАВИАТУРЫ ====================
+    window.addEventListener('keydown', (e) => {
+        const key = e.key;
+        const code = e.code;
+        if (code === 'Space' || code.startsWith('Arrow') || code === 'KeyA' || code === 'KeyD' || code === 'KeyC' || code === 'ControlLeft' || code === 'ControlRight' || code === 'KeyE') {
+            e.preventDefault();
+        }
+        if (code === 'KeyA' || key === 'ArrowLeft') keys.left = true;
+        if (code === 'KeyD' || key === 'ArrowRight') keys.right = true;
+        if (code === 'Space') {
+            keys.jump = true;
+            jumpKeyWasPressed = true;
+        }
+        if (code === 'KeyC') keys.dash = true;
+        if (code === 'ControlLeft' || code === 'ControlRight') keys.spell = true;
+        if (code === 'KeyE') keys.spellUp = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const key = e.key;
+        const code = e.code;
+        if (code === 'KeyA' || key === 'ArrowLeft') keys.left = false;
+        if (code === 'KeyD' || key === 'ArrowRight') keys.right = false;
+        if (code === 'Space') keys.jump = false;
+        if (code === 'KeyC') keys.dash = false;
+        if (code === 'ControlLeft' || code === 'ControlRight') keys.spell = false;
+        if (code === 'KeyE') keys.spellUp = false;
+    });
+
+    // ==================== МЫШЬ ====================
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+            e.preventDefault();
+            keys.attack = true;
+        }
+    });
+    canvas.addEventListener('mouseup', (e) => {
+        if (e.button === 0) {
+            e.preventDefault();
+            keys.attack = false;
+        }
+    });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    window.addEventListener('blur', () => {
+        keys.left = false; keys.right = false; keys.jump = false; keys.dash = false; keys.attack = false; keys.spell = false; keys.spellUp = false;
+    });
+
+    // ==================== СБРОС ====================
+    function resetGame() {
+        currentRoom = 0;
+        loadRoom(currentRoom);
+        knight.x = 80; knight.y = 400;
+        knight.vx = 0; knight.vy = 0;
+        knight.grounded = false; knight.wallSliding = false;
+        knight.doubleJumpUsed = false;
+        knight.canDash = true; knight.isDashing = false;
+        knight.dashTimer = 0; knight.dashCooldownTimer = 0;
+        knight.attackTimer = 0; knight.attackCooldown = 0;
+        knight.facing = 1;
+        knight.invincible = 0;
+        knight.health = 1;
+        knight.spellCooldown = 0;
+        knight.spellUpCooldown = 0;
+        projectiles = [];
+        totalGrubsCollected = 0;
+        updateGrubDisplay();
+    }
+
+    function loadRoom(roomId) {
+        currentRoom = roomId;
+        const room = rooms[roomId];
+        platforms = room.platforms;
+        enemies = room.enemies ? room.enemies.map(e => ({ ...e, alive: true })) : [];
+        grubs = room.grubs.map(g => ({ ...g }));
+        if (room.boss) {
+            boss = { ...room.boss, active: true };
+        } else {
+            boss = null;
+        }
+        totalGrubsCollected = rooms.reduce((acc, room) => acc + room.grubs.filter(g => g.collected).length, 0);
+        updateGrubDisplay();
+    }
+
+    function updateGrubDisplay() {
+        grubDisplay.innerText = `🪱 ${totalGrubsCollected} / ${totalGrubCount}`;
+    }
+
+    document.getElementById('resetButton').addEventListener('click', resetGame);
+
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+    function rectCollide(r1, r2) {
+        return !(r2.x >= r1.x + r1.w || r2.x + r2.w <= r1.x ||
+            r2.y >= r1.y + r1.h || r2.y + r2.h <= r1.y);
+    }
+
+    function checkRoomTransition() {
+        if (knight.x > W - 50 && currentRoom < rooms.length - 1) {
+            knight.x = 50;
+            loadRoom(currentRoom + 1);
+        } else if (knight.x < 50 && currentRoom > 0) {
+            knight.x = W - 50;
+            loadRoom(currentRoom - 1);
+        }
+    }
+
+    // ==================== ОБНОВЛЕНИЕ (полное, с врагами) ====================
+    function update() {
+        // Таймеры игрока
+        if (knight.invincible > 0) knight.invincible--;
+        if (knight.attackTimer > 0) knight.attackTimer--;
+        if (knight.attackCooldown > 0) knight.attackCooldown--;
+        if (knight.dashTimer > 0) knight.dashTimer--;
+        if (knight.dashCooldownTimer > 0) knight.dashCooldownTimer--;
+        if (knight.spellCooldown > 0) knight.spellCooldown--;
+        if (knight.spellUpCooldown > 0) knight.spellUpCooldown--;
+
+        if (knight.dashTimer <= 0) knight.isDashing = false;
+
+        // Анимация
+        knight.animTimer++;
+        if (knight.animTimer > 8) {
+            knight.animTimer = 0;
+            knight.animFrame = (knight.animFrame + 1) % 4;
+        }
+
+        // Атака
+        if (keys.attack && knight.attackCooldown <= 0 && knight.attackTimer <= 0) {
+            knight.attackTimer = ATTACK_DURATION;
+            knight.attackCooldown = ATTACK_COOLDOWN;
+        }
+
+        // Заклинания
+        if (keys.spell && knight.spellCooldown <= 0) {
+            projectiles.push({ x: knight.x + knight.facing * 20, y: knight.y - 8, vx: knight.facing * PROJECTILE_SPEED, vy: 0, w: 20, h: 12, active: true });
+            projectiles.push({ x: knight.x + knight.facing * 20, y: knight.y - 2, vx: knight.facing * PROJECTILE_SPEED, vy: -1.5, w: 16, h: 8, active: true });
+            projectiles.push({ x: knight.x + knight.facing * 20, y: knight.y - 8, vx: knight.facing * PROJECTILE_SPEED, vy: 1.5, w: 14, h: 7, active: true });
+            knight.spellCooldown = PROJECTILE_COOLDOWN;
+        }
+        if (keys.spellUp && knight.spellUpCooldown <= 0) {
+            projectiles.push({ x: knight.x, y: knight.y - 20, vx: -1.5, vy: -PROJECTILE_SPEED, w: 16, h: 8, active: true });
+            projectiles.push({ x: knight.x, y: knight.y - 20, vx: 0, vy: -PROJECTILE_SPEED, w: 20, h: 12, active: true });
+            projectiles.push({ x: knight.x, y: knight.y - 20, vx: 1.5, vy: -PROJECTILE_SPEED, w: 16, h: 8, active: true });
+            knight.spellUpCooldown = PROJECTILE_COOLDOWN;
+        }
+
+        // Рывок
+        if (keys.dash && knight.canDash && knight.dashCooldownTimer <= 0 && !knight.isDashing) {
+            knight.isDashing = true;
+            knight.dashTimer = DASH_DURATION;
+            knight.dashCooldownTimer = DASH_COOLDOWN;
+            knight.canDash = false;
+            let dashDir = 0;
+            if (keys.left) dashDir = -1;
+            else if (keys.right) dashDir = 1;
+            else dashDir = knight.facing;
+            knight.vx = dashDir * DASH_SPEED;
+            knight.vy = 0;
+        }
+
+        // Горизонтальное движение
+        if (!knight.isDashing) {
+            if (keys.left) knight.vx = -MOVE_SPEED;
+            else if (keys.right) knight.vx = MOVE_SPEED;
+            else knight.vx *= 0.6;
+        }
+
+        // Гравитация
+        if (!knight.isDashing) {
+            knight.vy += GRAVITY;
+            if (knight.vy > 10) knight.vy = 10;
+        }
+
+        // Скольжение по стенам
+        knight.wallSliding = false;
+        if (!knight.grounded && !knight.isDashing) {
+            let leftRect = { x: knight.x - knight.width/2 - 2, y: knight.y - knight.height/2, w: 2, h: knight.height };
+            let rightRect = { x: knight.x + knight.width/2, y: knight.y - knight.height/2, w: 2, h: knight.height };
+            for (let pl of platforms) {
+                let pr = { x: pl.x, y: pl.y, w: pl.w, h: pl.h };
+                if (rectCollide(leftRect, pr) && knight.vy > 0) {
+                    knight.wallSliding = true; knight.wallDir = -1; break;
+                }
+                if (rectCollide(rightRect, pr) && knight.vy > 0) {
+                    knight.wallSliding = true; knight.wallDir = 1; break;
+                }
+            }
+            if (knight.wallSliding) {
+                if (knight.vy > WALL_SLIDE_SPEED) knight.vy = WALL_SLIDE_SPEED;
+                knight.doubleJumpUsed = false;
+                knight.canDash = true;
+            }
+        }
+
+        // Прыжок (с двойным)
+        if (keys.jump) {
+            if (jumpKeyWasPressed) {
+                if (knight.grounded) {
+                    knight.vy = JUMP_FORCE;
+                    knight.grounded = false;
+                    knight.doubleJumpUsed = false;
+                } else if (!knight.doubleJumpUsed && !knight.wallSliding) {
+                    knight.vy = JUMP_FORCE * 0.9;
+                    knight.doubleJumpUsed = true;
+                } else if (knight.wallSliding) {
+                    knight.vy = JUMP_FORCE * 0.9;
+                    knight.vx = knight.wallDir * MOVE_SPEED * 1.5;
+                    knight.wallSliding = false;
+                    knight.doubleJumpUsed = false;
+                }
+                jumpKeyWasPressed = false;
+            }
+        } else {
+            jumpKeyWasPressed = false;
+        }
+
+        // Горизонтальные коллизии игрока
+        let newX = knight.x + knight.vx;
+        let knightHRect = { x: newX - knight.width/2, y: knight.y - knight.height/2, w: knight.width, h: knight.height };
+        for (let pl of platforms) {
+            let pr = { x: pl.x, y: pl.y, w: pl.w, h: pl.h };
+            if (rectCollide(knightHRect, pr)) {
+                if (knight.vx > 0) newX = pr.x - knight.width/2;
+                else if (knight.vx < 0) newX = pr.x + pr.w + knight.width/2;
+                knight.vx = 0; break;
+            }
+        }
+        knight.x = newX;
+
+        // Вертикальные коллизии игрока
+        let newY = knight.y + knight.vy;
+        let knightVRect = { x: knight.x - knight.width/2, y: newY - knight.height/2, w: knight.width, h: knight.height };
+        knight.grounded = false;
+        for (let pl of platforms) {
+            let pr = { x: pl.x, y: pl.y, w: pl.w, h: pl.h };
+            if (rectCollide(knightVRect, pr)) {
+                if (knight.vy > 0) {
+                    newY = pr.y - knight.height/2;
+                    knight.grounded = true;
+                    knight.doubleJumpUsed = false;
+                    knight.canDash = true;
+                } else if (knight.vy < 0) {
+                    newY = pr.y + pr.h + knight.height/2;
+                }
+                knight.vy = 0; break;
+            }
+        }
+        knight.y = newY;
+
+        // Границы
+        if (knight.x - knight.width/2 < 0) { knight.x = knight.width/2; knight.vx = 0; }
+        if (knight.x + knight.width/2 > W) { knight.x = W - knight.width/2; knight.vx = 0; }
+        if (knight.y - knight.height/2 < -30) knight.y = knight.height/2 + 10;
+        if (knight.y - knight.height/2 > H + 50) {
+            if (knight.invincible <= 0) { knight.health = 0; resetGame(); }
+        }
+
+        // Гусеницы
+        for (let g of grubs) {
+            if (!g.collected) {
+                let grubRect = { x: g.x - 8, y: g.y - 8, w: 16, h: 16 };
+                let knightRect = { x: knight.x - knight.width/2, y: knight.y - knight.height/2, w: knight.width, h: knight.height };
+                if (rectCollide(knightRect, grubRect)) {
+                    g.collected = true;
+                    totalGrubsCollected++;
+                    updateGrubDisplay();
+                }
+            }
+        }
+
+        // ==================== ВРАГИ ====================
+        for (let e of enemies) {
+            if (!e.alive) continue;
+
+            // Гравитация
+            e.vy += GRAVITY;
+            if (e.vy > 8) e.vy = 8;
+
+            // Проверка края платформы
+            let dir = e.vx > 0 ? 1 : -1;
+            let frontX = e.x + dir * (e.w/2 + 2);
+            let groundCheckRect = { x: frontX - 2, y: e.y + e.h/2, w: 4, h: 5 };
+            let hasGroundAhead = false;
+            for (let pl of platforms) {
+                if (rectCollide(groundCheckRect, { x: pl.x, y: pl.y, w: pl.w, h: pl.h })) {
+                    hasGroundAhead = true;
+                    break;
+                }
+            }
+            if (!hasGroundAhead) e.vx *= -1;
+
+            // Столкновение со стенами (горизонталь)
+            let newEnemyX = e.x + e.vx;
+            let enemyHRect = { x: newEnemyX - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h };
+            let collidesWall = false;
+            for (let pl of platforms) {
+                if (rectCollide(enemyHRect, { x: pl.x, y: pl.y, w: pl.w, h: pl.h })) {
+                    collidesWall = true;
+                    break;
+                }
+            }
+            if (collidesWall) {
+                e.vx *= -1;
+            } else {
+                e.x = newEnemyX;
+            }
+
+            // Вертикальное движение
+            let newEnemyY = e.y + e.vy;
+            let enemyVRect = { x: e.x - e.w/2, y: newEnemyY - e.h/2, w: e.w, h: e.h };
+            for (let pl of platforms) {
+                if (rectCollide(enemyVRect, { x: pl.x, y: pl.y, w: pl.w, h: pl.h })) {
+                    if (e.vy > 0) {
+                        newEnemyY = pl.y - e.h/2;
+                    } else if (e.vy < 0) {
+                        newEnemyY = pl.y + pl.h + e.h/2;
+                    }
+                    e.vy = 0;
+                    break;
+                }
+            }
+            e.y = newEnemyY;
+
+            if (e.y - e.h/2 < -50) e.y = e.h/2 + 10;
+            if (e.y + e.h/2 > H + 100) e.alive = false;
+
+            // Попадание атаки игрока
+            if (knight.attackTimer > 0) {
+                let attackBox;
+                if (knight.facing > 0) {
+                    attackBox = { x: knight.x + 5, y: knight.y - 20, w: 40, h: 30 };
+                } else {
+                    attackBox = { x: knight.x - 45, y: knight.y - 20, w: 40, h: 30 };
+                }
+                let enemyRect = { x: e.x - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h };
+                if (rectCollide(attackBox, enemyRect)) {
+                    e.alive = false;
+                }
+            }
+
+            // Столкновение с игроком
+            if (e.alive) {
+                let enemyRect = { x: e.x - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h };
+                let knightRect = { x: knight.x - knight.width/2, y: knight.y - knight.height/2, w: knight.width, h: knight.height };
+                if (rectCollide(knightRect, enemyRect)) {
+                    if (knight.invincible <= 0 && !knight.isDashing) {
+                        knight.health--;
+                        knight.invincible = 40;
+                        if (knight.health <= 0) resetGame();
+                        else {
+                            knight.vx = (knight.x - e.x) * 0.5;
+                            knight.vy = -4;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================== БОСС ХОРНЕТ ====================
+        if (boss && boss.active && boss.health > 0) {
+            if (boss.invincible > 0) boss.invincible--;
+
+            let moveSpeed = 2;
+            boss.x += moveSpeed * (boss.phase === 0 ? 1 : -1);
+            if (boss.x < 100 || boss.x > 800) {
+                boss.phase = 1 - boss.phase;
+            }
+
+            if (boss.attackCooldown <= 0) {
+                let dx = knight.x - boss.x;
+                let dy = knight.y - boss.y;
+                let len = Math.sqrt(dx*dx + dy*dy);
+                if (len > 0) {
+                    let vx = (dx / len) * 4;
+                    let vy = (dy / len) * 4;
+                    projectiles.push({
+                        x: boss.x, y: boss.y,
+                        vx: vx, vy: vy,
+                        w: 10, h: 10,
+                        active: true,
+                        fromBoss: true
+                    });
+                }
+                boss.attackCooldown = 40;
+            } else {
+                boss.attackCooldown--;
+            }
+
+            // Попадание атаки игрока
+            if (knight.attackTimer > 0) {
+                let attackBox;
+                if (knight.facing > 0) {
+                    attackBox = { x: knight.x + 5, y: knight.y - 20, w: 40, h: 30 };
+                } else {
+                    attackBox = { x: knight.x - 45, y: knight.y - 20, w: 40, h: 30 };
+                }
+                let bossRect = { x: boss.x - boss.width/2, y: boss.y - boss.height/2, w: boss.width, h: boss.height };
+                if (rectCollide(attackBox, bossRect) && boss.invincible <= 0) {
+                    boss.health--;
+                    boss.invincible = 20;
+                    if (boss.health <= 0) boss.active = false;
+                }
+            }
+
+            // Попадание снарядов игрока
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                if (!p.active || p.fromBoss) continue;
+                let projRect = { x: p.x - p.w/2, y: p.y - p.h/2, w: p.w, h: p.h };
+                let bossRect = { x: boss.x - boss.width/2, y: boss.y - boss.height/2, w: boss.width, h: boss.height };
+                if (rectCollide(projRect, bossRect) && boss.invincible <= 0) {
+                    boss.health--;
+                    boss.invincible = 20;
+                    p.active = false;
+                    projectiles.splice(i, 1);
+                    if (boss.health <= 0) { boss.active = false; break; }
+                }
+            }
+
+            // Столкновение с игроком
+            let bossRect = { x: boss.x - boss.width/2, y: boss.y - boss.height/2, w: boss.width, h: boss.height };
+            let knightRect = { x: knight.x - knight.width/2, y: knight.y - knight.height/2, w: knight.width, h: knight.height };
+            if (rectCollide(knightRect, bossRect)) {
+                if (knight.invincible <= 0 && !knight.isDashing) {
+                    knight.health--;
+                    knight.invincible = 40;
+                    if (knight.health <= 0) resetGame();
+                }
+            }
+        }
+
+        // ==================== СНАРЯДЫ ====================
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i];
+            if (!p.active) continue;
+            p.x += p.vx;
+            p.y += p.vy;
+            let projRect = { x: p.x - p.w/2, y: p.y - p.h/2, w: p.w, h: p.h };
+            let hitPlatform = false;
+            for (let pl of platforms) {
+                if (rectCollide(projRect, { x: pl.x, y: pl.y, w: pl.w, h: pl.h })) {
+                    hitPlatform = true; break;
+                }
+            }
+            if (hitPlatform) {
+                p.active = false; projectiles.splice(i, 1); continue;
+            }
+            for (let j = 0; j < enemies.length; j++) {
+                let e = enemies[j];
+                if (!e.alive) continue;
+                let enemyRect = { x: e.x - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h };
+                if (rectCollide(projRect, enemyRect)) {
+                    e.alive = false;
+                    p.active = false;
+                    projectiles.splice(i, 1);
+                    break;
+                }
+            }
+            if (p.fromBoss) {
+                let knightRect = { x: knight.x - knight.width/2, y: knight.y - knight.height/2, w: knight.width, h: knight.height };
+                if (rectCollide(projRect, knightRect) && knight.invincible <= 0 && !knight.isDashing) {
+                    knight.health--;
+                    knight.invincible = 40;
+                    p.active = false;
+                    projectiles.splice(i, 1);
+                    if (knight.health <= 0) resetGame();
+                    continue;
+                }
+            }
+            if (p.x < -50 || p.x > W + 50 || p.y < -50 || p.y > H + 50) {
+                p.active = false; projectiles.splice(i, 1);
+            }
+        }
+
+        if (knight.vx > 0.5) knight.facing = 1;
+        else if (knight.vx < -0.5) knight.facing = -1;
+
+        checkRoomTransition();
+    }
+
+    // ==================== ОТРИСОВКА ====================
+    function drawBackground() {
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#2a2a1e');
+        grad.addColorStop(0.5, '#3d3a2b');
+        grad.addColorStop(1, '#1f1e17');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#978e6f';
+        for (let i = 0; i < 30; i++) {
+            let x = (i * 37 + Date.now() * 0.1) % W;
+            let y = (i * 23 + Date.now() * 0.2) % H;
+            ctx.globalAlpha = 0.2 + 0.1 * Math.sin(Date.now() * 0.003 + i);
+            ctx.beginPath();
+            ctx.arc(x, y, 2 + i % 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function drawKnight() {
+        let kx = knight.x, ky = knight.y;
+        let framePos;
+
+        // Выбор кадра
+        if (knight.attackTimer > 0) {
+            framePos = (knight.animFrame % 2 === 0) ? framePositions.attack1 : framePositions.attack2;
+        } else if (knight.isDashing) {
+            framePos = framePositions.dash;
+        } else if (!knight.grounded && !knight.wallSliding) {
+            if (knight.vy < 0) framePos = framePositions.jump;
+            else framePos = framePositions.fall;
+        } else if (knight.wallSliding) {
+            framePos = framePositions.climb;
+        } else if (Math.abs(knight.vx) > 0.2) {
+            framePos = (knight.animFrame % 2 === 0) ? framePositions.run1 : framePositions.run2;
+        } else {
+            framePos = framePositions.idle;
+        }
+
+        // Вычисляем координаты в спрайт-листе
+        let sx = framePos.col * FRAME_WIDTH;
+        let sy = framePos.row * FRAME_HEIGHT;
+
+        ctx.save();
+        ctx.translate(kx, ky);
+        if (knight.facing < 0) ctx.scale(-1, 1);
+        if (knightSpriteLoaded) {
+            ctx.drawImage(
+                knightSprite,
+                sx, sy, FRAME_WIDTH, FRAME_HEIGHT,
+                -KNIGHT_SIZE, -KNIGHT_SIZE, KNIGHT_SIZE*2, KNIGHT_SIZE*2
+            );
+        } else {
+            // Заглушка
+            ctx.fillStyle = '#1d2b32';
+            ctx.beginPath(); ctx.ellipse(0, -1, 11, 12, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#354f5a';
+            ctx.beginPath(); ctx.ellipse(0, -5, 9, 8, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#f0f0e0';
+            ctx.beginPath(); ctx.arc(-4, -9, 3, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(4, -9, 3, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#131313';
+            ctx.beginPath(); ctx.arc(-4 + (knight.facing*1), -10, 1.5, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(4 + (knight.facing*1), -10, 1.5, 0, 2*Math.PI); ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    function drawHornet() {
+        if (!boss || !boss.active) return;
+        let x = boss.x, y = boss.y;
+        if (hornetLoaded) {
+            ctx.drawImage(hornetSprite, x - 30, y - 30, 60, 60);
+        } else {
+            ctx.fillStyle = '#7a4a6e';
+            ctx.beginPath(); ctx.ellipse(x, y, 20, 25, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#b34e7a';
+            ctx.beginPath(); ctx.ellipse(x-5, y-8, 6, 8, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#f0e68c';
+            ctx.font = 'bold 16px monospace';
+            ctx.fillText('H', x-8, y-20);
+        }
+        // Полоска здоровья
+        ctx.fillStyle = '#a55';
+        ctx.fillRect(x-40, y-45, 80, 8);
+        ctx.fillStyle = '#5a5';
+        let healthPercent = boss.health / boss.maxHealth;
+        ctx.fillRect(x-40, y-45, 80 * healthPercent, 8);
+    }
+
+    function draw() {
+        drawBackground();
+
+        // Платформы
+        for (let pl of platforms) {
+            ctx.fillStyle = '#4a4a3a';
+            ctx.fillRect(pl.x + 2, pl.y + 3, pl.w, pl.h);
+            ctx.fillStyle = '#6b5e4a';
+            ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
+            ctx.fillStyle = '#8f7e64';
+            ctx.fillRect(pl.x, pl.y, pl.w, 4);
+            ctx.fillStyle = '#4f4637';
+            ctx.fillRect(pl.x, pl.y + pl.h-4, pl.w, 4);
+            ctx.fillStyle = '#5c784b';
+            ctx.globalAlpha = 0.4;
+            for (let i = 0; i < pl.w/20; i++) {
+                ctx.fillRect(pl.x + i*20 + 5, pl.y + 2, 8, 4);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        // Обычные враги
+        for (let e of enemies) {
+            if (!e.alive) continue;
+            ctx.fillStyle = '#632a2a';
+            ctx.beginPath(); ctx.ellipse(e.x, e.y, 12, 10, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#411f1f';
+            ctx.beginPath(); ctx.ellipse(e.x-3, e.y-3, 4, 4, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#e8d8b0';
+            ctx.beginPath(); ctx.arc(e.x-5, e.y-5, 2, 0, 2*Math.PI); ctx.fill();
+        }
+
+        // Босс
+        drawHornet();
+
+        // Гусеницы
+        for (let g of grubs) {
+            if (g.collected) continue;
+            ctx.fillStyle = '#aab39c'; ctx.globalAlpha = 0.8;
+            ctx.fillRect(g.x-10, g.y-8, 20, 18);
+            ctx.fillStyle = '#76856a'; ctx.fillRect(g.x-10, g.y-10, 20, 4);
+            ctx.fillStyle = '#f5e7b2'; ctx.globalAlpha = 1;
+            ctx.beginPath(); ctx.ellipse(g.x, g.y-2, 6, 5, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = '#1b1b1b';
+            ctx.beginPath(); ctx.arc(g.x-3, g.y-5, 1.5, 0, 2*Math.PI); ctx.fill();
+            ctx.beginPath(); ctx.arc(g.x+3, g.y-5, 1.5, 0, 2*Math.PI); ctx.fill();
+        }
+
+        // Снаряды
+        for (let p of projectiles) {
+            ctx.fillStyle = '#d6b55a';
+            ctx.shadowColor = '#f0d080';
+            ctx.shadowBlur = 15;
+            ctx.beginPath(); ctx.ellipse(p.x, p.y, p.w/2, p.h/2, 0, 0, 2*Math.PI); ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // Рыцарь
+        drawKnight();
+
+        if (knight.isDashing && knightSpriteLoaded) {
+            ctx.fillStyle = '#afc5d9';
+            ctx.globalAlpha = 0.6;
+            for (let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.arc(knight.x - knight.facing*10 + i*6, knight.y-5, 2, 0, 2*Math.PI); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+
+    resetGame();
+})();
+</script>
+</body>
+</html>
